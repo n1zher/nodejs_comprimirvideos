@@ -1,17 +1,21 @@
-<!-- index.ejs -->
-
 <!DOCTYPE html>
-<html lang="en">
+<html>
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Subir Videos</title>
+    <title>Comprimidor de Video</title>
 </head>
+
 <body>
-    <h1>Subir Video</h1>
-    <form action="/upload" method="post" enctype="multipart/form-data">
-        <input type="file" name="video" accept="video/*">
-        <button type="submit">Subir Video</button>
+    <h1>Comprimir Video</h1>
+    <form action="/compress" method="post" enctype="multipart/form-data">
+        <input type="file" name="video" accept=".mp4, .mov" required>
+        <label for="format">Selecciona Formato de Salida:</label>
+        <select name="format">
+            <option value="mp4">MP4</option>
+            <option value="mov">MOV</option>
+        </select>
+        <button type="submit">Comprimir</button>
     </form>
 </body>
+
 </html>

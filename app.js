@@ -1,60 +1,54 @@
-// app.js
-
 const express = require('express');
-const path = require('path');
 const multer = require('multer');
-const { exec } = require('child_process');
+const ffmpeg = require('fluent-ffmpeg');
+const ffmpegPath = require('ffmpeg-static');
+const fs = require('fs');
+
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 const app = express();
-const port = 3000;
+const upload = multer({ dest: 'uploads/' });
 
-// Configuración de Multer para la carga de archivos
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
-
-
-// Configuración de Express y EJS
-app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
-app.use(express.static(path.join(__dirname, 'public')));
 
-// Rutas
 app.get('/', (req, res) => {
   res.render('index');
 });
 
-// Ruta para subir videos
-app.post('/upload', upload.single('video'), (req, res) => {
-  // Comprimir el video usando FFMPEG
-  const command = `ffmpeg -i - -vf scale=640:480 -c:v libx264 -preset medium -crf 23 -c:a aac -strict experimental -movflags +faststart -f mp4 -`;
-  const ffmpegProcess = exec(command, (error, stdout, stderr) => {
-    if (error) {
-      console.error(`Error: ${error.message}`);
-      return;
-    }
-    if (stderr) {
-      console.error(`Error: ${stderr}`);
-      return;
-    }
-  });
+app.post('/compress', upload.single('video'), (req, res) => {
+  const inputPath = req.file.path;
+  const format = req.body.format;
+  const outputPath = `compressed-${Date.now()}.${format}`;
 
-  // Manejar cierre de la conexión de respuesta del cliente
-  req.on('close', () => {
-    console.log('La conexión se cerró prematuramente');
-    ffmpegProcess.kill('SIGKILL'); // Finalizar proceso FFMPEG
-  });
-
-  // Configurar la respuesta HTTP para entregar el video comprimido
-  res.setHeader('Content-Type', 'video/mp4');
-  res.setHeader('Content-Disposition', 'attachment; filename=compressed_video.mp4');
-  ffmpegProcess.stdout.pipe(res);
-
-  // Escribir el contenido del archivo en el proceso de FFMPEG
-  ffmpegProcess.stdin.write(req.file.buffer);
-  ffmpegProcess.stdin.end();
+  ffmpeg(inputPath)
+    .output(outputPath)
+    .on('end', function () {
+      res.download(outputPath, outputPath, (err) => {
+        if (err) {
+          console.error("Error during download", err);
+        }
+        // Intenta eliminar los archivos después de la respuesta ha sido enviada completamente
+        cleanUpFiles([inputPath, outputPath]);
+      });
+    })
+    .on('error', function (err) {
+      console.log('Error: ' + err.message);
+      cleanUpFiles([inputPath, outputPath]); // Asegúrate de limpiar incluso si hay un error
+      res.sendStatus(500);
+    })
+    .run();
 });
 
-// Iniciar el servidor
-app.listen(port, () => {
-  console.log(`App listening at http://localhost:${port}`);
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en http://localhost:${PORT}`);
 });
+
+function cleanUpFiles(paths) {
+  paths.forEach(path => {
+    fs.unlink(path, (err) => {
+      if (err) console.error(`Error al eliminar ${path}`, err);
+      else console.log(`${path} fue eliminado correctamente.`);
+    });
+  });
+}
